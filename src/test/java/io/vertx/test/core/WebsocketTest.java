@@ -28,9 +28,7 @@ import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.*;
 import io.vertx.core.impl.ConcurrentHashSet;
-import io.vertx.core.net.KeyCertOptions;
 import io.vertx.core.net.NetSocket;
-import io.vertx.core.net.TrustOptions;
 import io.vertx.core.streams.ReadStream;
 import io.vertx.test.core.tls.Cert;
 import io.vertx.test.core.tls.Trust;
@@ -968,6 +966,76 @@ public class WebsocketTest extends VertxTestBase {
         ws.handler(actual::appendBuffer);
         ws.closeHandler(v -> {
           assertArrayEquals(expected, actual.getBytes());
+          testComplete();
+        });
+      });
+    });
+    await();
+  }
+
+  @Test
+  public void testFragmentedTextMessage2Hybi00() {
+    String messageToSend = TestUtils.randomAlphaString(65536 + 65536 + 256);
+    testWriteTextMessage(messageToSend, WebsocketVersion.V00);
+  }
+
+  @Test
+  public void testFragmentedTextMessage2Hybi07() {
+    String messageToSend = TestUtils.randomAlphaString(65536 + 65536 + 256);
+    testWriteTextMessage(messageToSend, WebsocketVersion.V07);
+  }
+
+  @Test
+  public void testFragmentedTextMessage2Hybi08() {
+    String messageToSend = TestUtils.randomAlphaString(65536 + 65536 + 256);
+    testWriteTextMessage(messageToSend, WebsocketVersion.V08);
+  }
+
+  @Test
+  public void testFragmentedTextMessage2Hybi13() {
+    String messageToSend = TestUtils.randomAlphaString(65536 + 65536 + 256);
+    testWriteTextMessage(messageToSend, WebsocketVersion.V13);
+  }
+
+  @Test
+  public void testFragmentedUnicodeTextMessage2Hybi00() {
+    String messageToSend = TestUtils.randomUnicodeString(65536 + 65536 + 256);
+    testWriteTextMessage(messageToSend, WebsocketVersion.V00);
+  }
+
+  @Test
+  public void testFragmentedUnicodeTextMessage2Hybi07() {
+    String messageToSend = TestUtils.randomUnicodeString(65536 + 65536 + 256);
+    testWriteTextMessage(messageToSend, WebsocketVersion.V07);
+  }
+
+  @Test
+  public void testFragmentedUnicodeTextMessage2Hybi08() {
+    String messageToSend = TestUtils.randomUnicodeString(65536 + 65536 + 256);
+    testWriteTextMessage(messageToSend, WebsocketVersion.V08);
+  }
+
+  @Test
+  public void testFragmentedUnicodeTextMessage2Hybi13() {
+    String messageToSend = TestUtils.randomUnicodeString(65536 + 65536 + 256);
+    testWriteTextMessage(messageToSend, WebsocketVersion.V13);
+  }
+
+  private void testWriteTextMessage(String messageToSend, WebsocketVersion version) {
+    String path = "/some/path";
+    server = vertx.createHttpServer(new HttpServerOptions().setPort(HttpTestBase.DEFAULT_HTTP_PORT)).websocketHandler(ws -> {
+      ws.writeTextMessage(messageToSend);
+      ws.close();
+    });
+    server.listen(ar -> {
+      assertTrue(ar.succeeded());
+      client.websocket(HttpTestBase.DEFAULT_HTTP_PORT, HttpTestBase.DEFAULT_HTTP_HOST, path, null, version, ws -> {
+        StringBuilder responseBuilder = new StringBuilder(messageToSend.length());
+        ws.textMessageHandler(responseBuilder::append);
+        ws.closeHandler(v -> {
+          String completeResponse = responseBuilder.toString();
+          assertEquals(String.format("Incorrect returned message (expected size %s, actualSize %s)",
+            messageToSend.length(), completeResponse.length()), messageToSend, completeResponse);
           testComplete();
         });
       });

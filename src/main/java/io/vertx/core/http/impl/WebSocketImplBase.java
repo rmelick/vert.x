@@ -49,7 +49,12 @@ public abstract class WebSocketImplBase implements WebSocketBase {
   private final MessageConsumer textHandlerRegistration;
   protected final ConnectionBase conn;
 
+  private Buffer textMessageBuffer;
+  private Buffer binaryMessageBuffer;
+
   protected Handler<WebSocketFrame> frameHandler;
+  protected Handler<String> textMessageHandler;
+  protected Handler<Buffer> binaryMessageHandler;
   protected Handler<Buffer> dataHandler;
   protected Handler<Void> drainHandler;
   protected Handler<Throwable> exceptionHandler;
@@ -68,6 +73,9 @@ public abstract class WebSocketImplBase implements WebSocketBase {
     Handler<Message<String>> textHandler = msg -> writeTextFrameInternal(msg.body());
     textHandlerRegistration = vertx.eventBus().<String>localConsumer(textHandlerID).handler(textHandler);
     this.maxWebSocketFrameSize = maxWebSocketFrameSize;
+    // TODO make the max buffer sizes configurable (and enforce them)?
+    this.textMessageBuffer = Buffer.buffer(maxWebSocketFrameSize);
+    this.binaryMessageBuffer = Buffer.buffer(maxWebSocketFrameSize);
   }
 
   public String binaryHandlerID() {
@@ -110,6 +118,11 @@ public abstract class WebSocketImplBase implements WebSocketBase {
     writePartialMessage(data, 0);
   }
 
+  protected void writeTextMessageInternal(String text) {
+    checkClosed();
+    writePartialTextMessage(text, 0);
+  }
+
   protected void writePartialMessage(Buffer data, int offset) {
     int end = offset + maxWebSocketFrameSize;
     boolean isFinal;
@@ -130,6 +143,30 @@ public abstract class WebSocketImplBase implements WebSocketBase {
     int newOffset = offset + maxWebSocketFrameSize;
     if (!isFinal) {
       writePartialMessage(data, newOffset);
+    }
+  }
+
+  protected void writePartialTextMessage(String data, int offset) {
+    int end = offset + maxWebSocketFrameSize;
+    boolean isFinal;
+    if (end >= data.length()) {
+      end  = data.length();
+      isFinal = true;
+    } else {
+      isFinal = false;
+    }
+    String slice = data.substring(offset, end);
+    WebSocketFrame frame;
+    if (offset == 0 || !supportsContinuation) {
+      frame = WebSocketFrame.textFrame(slice, isFinal);
+    } else {
+      frame = WebSocketFrame.continuationFrame(Buffer.buffer(slice), isFinal);
+    }
+
+    writeFrame(frame);
+    int newOffset = offset + maxWebSocketFrameSize;
+    if (!isFinal) {
+      writePartialTextMessage(data, newOffset);
     }
   }
 
@@ -168,6 +205,24 @@ public abstract class WebSocketImplBase implements WebSocketBase {
 
       if (frameHandler != null) {
         frameHandler.handle(frame);
+      }
+
+      if (textMessageHandler != null) {
+        textMessageBuffer.appendBuffer(Buffer.buffer(frame.getBinaryData()));
+        if (frame.isFinal()) {
+          String fullMessage = textMessageBuffer.toString();
+          textMessageBuffer = Buffer.buffer(textMessageBuffer.length());
+          textMessageHandler.handle(fullMessage);
+        }
+      }
+
+      if (binaryMessageHandler != null) {
+        binaryMessageBuffer.appendBuffer(Buffer.buffer(frame.getBinaryData()));
+        if (frame.isFinal()) {
+          Buffer fullMessage = binaryMessageBuffer.copy();
+          binaryMessageBuffer = Buffer.buffer(binaryMessageBuffer.length());
+          binaryMessageHandler.handle(fullMessage);
+        }
       }
     }
   }

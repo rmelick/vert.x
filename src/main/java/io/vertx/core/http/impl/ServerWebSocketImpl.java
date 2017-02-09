@@ -166,6 +166,24 @@ public class ServerWebSocketImpl extends WebSocketImplBase implements ServerWebS
   }
 
   @Override
+  public ServerWebSocket textMessageHandler(Handler<String> handler) {
+    synchronized (conn) {
+      checkClosed();
+      this.textMessageHandler = handler;
+      return this;
+    }
+  }
+
+  @Override
+  public ServerWebSocket binaryMessageHandler(Handler<Buffer> handler) {
+    synchronized (conn) {
+      checkClosed();
+      this.binaryMessageHandler = handler;
+      return this;
+    }
+  }
+
+  @Override
   public ServerWebSocket pause() {
     synchronized (conn) {
       checkClosed();
@@ -249,6 +267,15 @@ public class ServerWebSocketImpl extends WebSocketImplBase implements ServerWebS
     synchronized (conn) {
       checkClosed();
       writeMessageInternal(data);
+      return this;
+    }
+  }
+
+  @Override
+  public ServerWebSocket writeTextMessage(String text) {
+    synchronized (conn) {
+      checkClosed();
+      writeTextMessageInternal(text);
       return this;
     }
   }
