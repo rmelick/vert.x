@@ -973,11 +973,11 @@ public class WebsocketTest extends VertxTestBase {
     await();
   }
 
-  @Test
-  public void testFragmentedTextMessage2Hybi00() {
-    String messageToSend = TestUtils.randomAlphaString(65536 + 65536 + 256);
-    testWriteTextMessage(messageToSend, WebsocketVersion.V00);
-  }
+	@Test
+	public void testNonFragmentedTextMessage2Hybi00() {
+		String messageToSend = TestUtils.randomAlphaString(256);
+		testWriteTextMessage(messageToSend, WebsocketVersion.V00);
+	}
 
   @Test
   public void testFragmentedTextMessage2Hybi07() {
@@ -995,12 +995,6 @@ public class WebsocketTest extends VertxTestBase {
   public void testFragmentedTextMessage2Hybi13() {
     String messageToSend = TestUtils.randomAlphaString(65536 + 65536 + 256);
     testWriteTextMessage(messageToSend, WebsocketVersion.V13);
-  }
-
-  @Test
-  public void testFragmentedUnicodeTextMessage2Hybi00() {
-    String messageToSend = TestUtils.randomUnicodeString(65536 + 65536 + 256);
-    testWriteTextMessage(messageToSend, WebsocketVersion.V00);
   }
 
   @Test
