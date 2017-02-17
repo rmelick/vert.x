@@ -29,9 +29,6 @@ import io.vertx.core.impl.VertxInternal;
 import io.vertx.core.net.SocketAddress;
 import io.vertx.core.net.impl.ConnectionBase;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.UUID;
 
 /**
@@ -76,7 +73,6 @@ public abstract class WebSocketImplBase implements WebSocketBase {
     Handler<Message<String>> textHandler = msg -> writeTextFrameInternal(msg.body());
     textHandlerRegistration = vertx.eventBus().<String>localConsumer(textHandlerID).handler(textHandler);
     this.maxWebSocketFrameSize = maxWebSocketFrameSize;
-    // TODO make the max buffer sizes configurable (and enforce them)?
     this.textMessageBuffer = Buffer.buffer(maxWebSocketFrameSize);
     this.binaryMessageBuffer = Buffer.buffer(maxWebSocketFrameSize);
   }
@@ -118,68 +114,39 @@ public abstract class WebSocketImplBase implements WebSocketBase {
 
   protected void writeMessageInternal(Buffer data) {
     checkClosed();
-    writeBinaryMessageChunks(data);
+    writePartialMessage(FrameType.BINARY, data, 0);
   }
 
   protected void writeTextMessageInternal(String text) {
     checkClosed();
-    writeTextMessageChunks(text);
-  }
-
-  protected void writeBinaryMessageChunks(Buffer data) {
-    List<Buffer> chunks = chunkMessage(data);
-    writeChunksAsFrames(chunks, FrameType.BINARY);
-  }
-
-  protected void writeTextMessageChunks(String stringData) {
-    Buffer data = Buffer.buffer(stringData);
-    List<Buffer> chunks = chunkMessage(data);
-    writeChunksAsFrames(chunks, FrameType.TEXT);
+    Buffer data = Buffer.buffer(text);
+    writePartialMessage(FrameType.TEXT, data, 0);
   }
 
   /**
-   * Splits the provided buffer into chunks of byte lengths not exceeding the maximum web socket frame size.
-   *
-   * @param buffer the buffer to be split. Is assumed to not be null
-   * @return list of chunks
+   * Splits the provided buffer into multiple frames (which do not exceed the maximum web socket frame size)
+   * and writes them in order to the socket.
    */
-  private List<Buffer> chunkMessage(Buffer buffer) {
-    // Messages that fit into one frame do not need to be split
-    if (buffer.length() < maxWebSocketFrameSize) {
-      return Collections.singletonList(buffer);
+  protected void writePartialMessage(FrameType frameType, Buffer data, int offset) {
+    int end = offset + maxWebSocketFrameSize;
+    boolean isFinal;
+    if (end >= data.length()) {
+      end  = data.length();
+      isFinal = true;
+    } else {
+      isFinal = false;
     }
-
-    // Larger messages need to be split into multiple chunks
-    int offset = 0;
-    List<Buffer> chunks = new ArrayList<>();
-    while (offset < buffer.length()) {
-      int sliceEnd = Math.min(buffer.length(), offset + maxWebSocketFrameSize);
-      Buffer chunk = buffer.slice(offset, sliceEnd);
-      chunks.add(chunk);
-      offset += chunk.length();
+    Buffer slice = data.slice(offset, end);
+    WebSocketFrame frame;
+    if (offset == 0 || !supportsContinuation) {
+      frame = new WebSocketFrameImpl(frameType, slice.getByteBuf(), isFinal);
+    } else {
+      frame = WebSocketFrame.continuationFrame(slice, isFinal);
     }
-    return chunks;
-  }
-
-  /**
-   * Creates WebSocketFrames from the provided chunks and writes them to the socket
-   * @param chunks data for each frame. Each chunk must fit within {@link #maxWebSocketFrameSize}
-   * @param initialFrameType The type of the initial frame in the websocket communication
-   */
-  private void writeChunksAsFrames(List<Buffer> chunks, FrameType initialFrameType) {
-    // Send chunks one by one
-    int chunkCount = chunks.size();
-    for (int chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++) {
-      Buffer chunk = chunks.get(chunkIndex);
-      boolean isFirst = (chunkIndex == 0);
-      boolean isFinal = (chunkIndex == chunkCount - 1);
-      WebSocketFrame frame;
-      if (isFirst || !supportsContinuation) {
-        frame = new WebSocketFrameImpl(initialFrameType, chunk.getByteBuf(), isFinal);
-      } else {
-        frame = WebSocketFrame.continuationFrame(chunk, isFinal);
-      }
-      writeFrame(frame);
+    writeFrame(frame);
+    int newOffset = offset + maxWebSocketFrameSize;
+    if (!isFinal) {
+      writePartialMessage(frameType, data, newOffset);
     }
   }
 
