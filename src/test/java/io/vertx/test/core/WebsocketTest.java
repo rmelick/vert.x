@@ -1017,6 +1017,12 @@ public class WebsocketTest extends VertxTestBase {
     testWriteTextMessage(messageToSend, WebsocketVersion.V13);
   }
 
+  @Test
+  public void testTooLargeMessage() {
+    String messageToSend = TestUtils.randomAlphaString(HttpClientOptions.DEFAULT_MAX_WEBSOCKET_MESSAGE_SIZE * 2);
+    testWriteTextMessage(messageToSend, WebsocketVersion.V13);
+  }
+
   private void testWriteTextMessage(String messageToSend, WebsocketVersion version) {
     String path = "/some/path";
     server = vertx.createHttpServer(new HttpServerOptions().setPort(HttpTestBase.DEFAULT_HTTP_PORT)).websocketHandler(ws -> {
@@ -1028,6 +1034,10 @@ public class WebsocketTest extends VertxTestBase {
       client.websocket(HttpTestBase.DEFAULT_HTTP_PORT, HttpTestBase.DEFAULT_HTTP_HOST, path, null, version, ws -> {
         StringBuilder responseBuilder = new StringBuilder(messageToSend.length());
         ws.textMessageHandler(responseBuilder::append);
+        ws.exceptionHandler(throwable -> {
+          fail(throwable);
+          testComplete();
+        });
         ws.closeHandler(v -> {
           String completeResponse = responseBuilder.toString();
           assertEquals(String.format("Incorrect returned message (expected size %s, actualSize %s)",
