@@ -26,6 +26,8 @@ import io.vertx.core.http.WebSocketFrame;
 import io.vertx.core.http.impl.ws.WebSocketFrameImpl;
 import io.vertx.core.http.impl.ws.WebSocketFrameInternal;
 import io.vertx.core.impl.VertxInternal;
+import io.vertx.core.logging.Logger;
+import io.vertx.core.logging.LoggerFactory;
 import io.vertx.core.net.SocketAddress;
 import io.vertx.core.net.impl.ConnectionBase;
 
@@ -40,16 +42,20 @@ import java.util.UUID;
  * @author <a href="http://tfox.org">Tim Fox</a>
  */
 public abstract class WebSocketImplBase implements WebSocketBase {
+  private static final Logger log = LoggerFactory.getLogger(WebSocketImplBase.class);
 
   private final boolean supportsContinuation;
   private final String textHandlerID;
   private final String binaryHandlerID;
   private final int maxWebSocketFrameSize;
+  private final int maxWebSocketMessageSize;
   private final MessageConsumer binaryHandlerRegistration;
   private final MessageConsumer textHandlerRegistration;
   protected final ConnectionBase conn;
 
+  private boolean processingPartialTextMessage;
   private Buffer textMessageBuffer;
+  private boolean processingPartialBinaryMessage;
   private Buffer binaryMessageBuffer;
 
   protected Handler<WebSocketFrame> frameHandler;
@@ -63,7 +69,7 @@ public abstract class WebSocketImplBase implements WebSocketBase {
   protected boolean closed;
 
   protected WebSocketImplBase(VertxInternal vertx, ConnectionBase conn, boolean supportsContinuation,
-                              int maxWebSocketFrameSize) {
+                              int maxWebSocketFrameSize, int maxWebSocketMessageSize) {
     this.supportsContinuation = supportsContinuation;
     this.textHandlerID = UUID.randomUUID().toString();
     this.binaryHandlerID = UUID.randomUUID().toString();
@@ -73,8 +79,11 @@ public abstract class WebSocketImplBase implements WebSocketBase {
     Handler<Message<String>> textHandler = msg -> writeTextFrameInternal(msg.body());
     textHandlerRegistration = vertx.eventBus().<String>localConsumer(textHandlerID).handler(textHandler);
     this.maxWebSocketFrameSize = maxWebSocketFrameSize;
-    this.textMessageBuffer = Buffer.buffer(maxWebSocketFrameSize);
-    this.binaryMessageBuffer = Buffer.buffer(maxWebSocketFrameSize);
+    this.maxWebSocketMessageSize = maxWebSocketMessageSize;
+    this.processingPartialBinaryMessage = false;
+    this.textMessageBuffer = Buffer.buffer(maxWebSocketMessageSize);
+    this.processingPartialBinaryMessage = false;
+    this.binaryMessageBuffer = Buffer.buffer(maxWebSocketMessageSize);
   }
 
   public String binaryHandlerID() {
@@ -187,24 +196,72 @@ public abstract class WebSocketImplBase implements WebSocketBase {
         frameHandler.handle(frame);
       }
 
-      if (textMessageHandler != null) {
-        textMessageBuffer.appendBuffer(Buffer.buffer(frame.getBinaryData()));
-        if (frame.isFinal()) {
-          String fullMessage = textMessageBuffer.toString();
-          textMessageBuffer = Buffer.buffer(textMessageBuffer.length());
-          textMessageHandler.handle(fullMessage);
-        }
+      if (textMessageHandler != null && (frame.type() == FrameType.TEXT
+        || (processingPartialTextMessage && frame.type() == FrameType.CONTINUATION))) {
+        handleTextFrame(frame);
       }
 
-      if (binaryMessageHandler != null) {
-        binaryMessageBuffer.appendBuffer(Buffer.buffer(frame.getBinaryData()));
-        if (frame.isFinal()) {
-          Buffer fullMessage = binaryMessageBuffer.copy();
-          binaryMessageBuffer = Buffer.buffer(binaryMessageBuffer.length());
-          binaryMessageHandler.handle(fullMessage);
-        }
+      if (binaryMessageHandler != null && (frame.type() == FrameType.BINARY
+        || (processingPartialBinaryMessage && frame.type() == FrameType.CONTINUATION))) {
+        handleBinaryFrame(frame);
       }
     }
+  }
+
+  private void handleTextFrame(WebSocketFrameInternal frame) {
+    Buffer frameBuffer = Buffer.buffer(frame.getBinaryData());
+    if (frameBuffer.length() + textMessageBuffer.length() > maxWebSocketMessageSize) {
+      String exception = String.format("Cannot process text frame of size %s, it would cause message buffer (size %s) " +
+          "to overflow max message size of %s",
+        frameBuffer.length(), textMessageBuffer.length(), maxWebSocketMessageSize);
+      log.error(exception);
+      resetTextMessageProcessing();
+      handleException(new IllegalStateException(exception));
+      return;
+    }
+
+    textMessageBuffer.appendBuffer(frameBuffer);
+    if (frame.isFinal()) {
+      String fullMessage = textMessageBuffer.toString();
+      resetTextMessageProcessing();
+      textMessageHandler.handle(fullMessage);
+    } else {
+      processingPartialTextMessage = true;
+    }
+
+  }
+
+  private void resetTextMessageProcessing() {
+    textMessageBuffer = Buffer.buffer(maxWebSocketMessageSize);
+    processingPartialTextMessage = false;
+  }
+
+  private void handleBinaryFrame(WebSocketFrameInternal frame) {
+    Buffer frameBuffer = Buffer.buffer(frame.getBinaryData());
+    if (frameBuffer.length() + binaryMessageBuffer.length() > maxWebSocketMessageSize) {
+      String exception = String.format("Cannot process binary frame of size %s, it would cause message buffer (size %s) " +
+          "to overflow max message size of %s",
+        frameBuffer.length(), binaryMessageBuffer.length(), maxWebSocketMessageSize);
+      log.error(exception);
+      resetBinaryMessageProcessing();
+      handleException(new IllegalStateException(exception));
+      return;
+    }
+
+    binaryMessageBuffer.appendBuffer(frameBuffer);
+    if (frame.isFinal()) {
+      Buffer fullMessage = binaryMessageBuffer.copy();
+      resetBinaryMessageProcessing();
+      binaryMessageHandler.handle(fullMessage);
+    } else {
+      processingPartialBinaryMessage = true;
+    }
+
+  }
+
+  private void resetBinaryMessageProcessing() {
+    binaryMessageBuffer = Buffer.buffer(maxWebSocketMessageSize);
+    processingPartialBinaryMessage = false;
   }
 
   void writable() {

@@ -28,9 +28,7 @@ import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.*;
 import io.vertx.core.impl.ConcurrentHashSet;
-import io.vertx.core.net.KeyCertOptions;
 import io.vertx.core.net.NetSocket;
-import io.vertx.core.net.TrustOptions;
 import io.vertx.core.streams.ReadStream;
 import io.vertx.test.core.tls.Cert;
 import io.vertx.test.core.tls.Trust;
@@ -978,46 +976,52 @@ public class WebsocketTest extends VertxTestBase {
 	@Test
 	public void testNonFragmentedTextMessage2Hybi00() {
 		String messageToSend = TestUtils.randomAlphaString(256);
-		testWriteTextMessage(messageToSend, WebsocketVersion.V00);
+		testWriteTextMessage(messageToSend, messageToSend, WebsocketVersion.V00);
 	}
 
   @Test
   public void testFragmentedTextMessage2Hybi07() {
     String messageToSend = TestUtils.randomAlphaString(65536 + 65536 + 256);
-    testWriteTextMessage(messageToSend, WebsocketVersion.V07);
+    testWriteTextMessage(messageToSend, messageToSend, WebsocketVersion.V07);
   }
 
   @Test
   public void testFragmentedTextMessage2Hybi08() {
     String messageToSend = TestUtils.randomAlphaString(65536 + 65536 + 256);
-    testWriteTextMessage(messageToSend, WebsocketVersion.V08);
+    testWriteTextMessage(messageToSend, messageToSend, WebsocketVersion.V08);
   }
 
   @Test
   public void testFragmentedTextMessage2Hybi13() {
     String messageToSend = TestUtils.randomAlphaString(65536 + 65536 + 256);
-    testWriteTextMessage(messageToSend, WebsocketVersion.V13);
+    testWriteTextMessage(messageToSend, messageToSend, WebsocketVersion.V13);
   }
 
   @Test
   public void testFragmentedUnicodeTextMessage2Hybi07() {
     String messageToSend = TestUtils.randomUnicodeString(65536 + 65536 + 256);
-    testWriteTextMessage(messageToSend, WebsocketVersion.V07);
+    testWriteTextMessage(messageToSend, messageToSend, WebsocketVersion.V07);
   }
 
   @Test
   public void testFragmentedUnicodeTextMessage2Hybi08() {
     String messageToSend = TestUtils.randomUnicodeString(65536 + 65536 + 256);
-    testWriteTextMessage(messageToSend, WebsocketVersion.V08);
+    testWriteTextMessage(messageToSend, messageToSend, WebsocketVersion.V08);
   }
 
   @Test
   public void testFragmentedUnicodeTextMessage2Hybi13() {
     String messageToSend = TestUtils.randomUnicodeString(65536 + 65536 + 256);
-    testWriteTextMessage(messageToSend, WebsocketVersion.V13);
+    testWriteTextMessage(messageToSend, messageToSend, WebsocketVersion.V13);
   }
 
-  private void testWriteTextMessage(String messageToSend, WebsocketVersion version) {
+  @Test(expected = IllegalStateException.class)
+  public void testTooLargeMessage() {
+    String messageToSend = TestUtils.randomAlphaString(HttpClientOptions.DEFAULT_MAX_WEBSOCKET_MESSAGE_SIZE * 2);
+    testWriteTextMessage(messageToSend, "", WebsocketVersion.V13);
+  }
+
+  private void testWriteTextMessage(String messageToSend, String expectedServerSideMessage, WebsocketVersion version) {
     String path = "/some/path";
     server = vertx.createHttpServer(new HttpServerOptions().setPort(HttpTestBase.DEFAULT_HTTP_PORT)).websocketHandler(ws -> {
       ws.writeTextMessage(messageToSend);
@@ -1028,10 +1032,13 @@ public class WebsocketTest extends VertxTestBase {
       client.websocket(HttpTestBase.DEFAULT_HTTP_PORT, HttpTestBase.DEFAULT_HTTP_HOST, path, null, version, ws -> {
         StringBuilder responseBuilder = new StringBuilder(messageToSend.length());
         ws.textMessageHandler(responseBuilder::append);
+        ws.exceptionHandler(throwable -> {
+          fail(throwable);
+        });
         ws.closeHandler(v -> {
           String completeResponse = responseBuilder.toString();
           assertEquals(String.format("Incorrect returned message (expected size %s, actualSize %s)",
-            messageToSend.length(), completeResponse.length()), messageToSend, completeResponse);
+            messageToSend.length(), completeResponse.length()), expectedServerSideMessage, completeResponse);
           testComplete();
         });
       });

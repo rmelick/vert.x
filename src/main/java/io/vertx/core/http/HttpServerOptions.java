@@ -50,6 +50,11 @@ public class HttpServerOptions extends NetServerOptions {
   public static final int DEFAULT_MAX_WEBSOCKET_FRAME_SIZE = 65536;
 
   /**
+   * Default max websocket message (could be assembled from multiple frames) size = 655360
+   */
+  public static final int DEFAULT_MAX_WEBSOCKET_MESSAGE_SIZE = 655360;
+
+  /**
    * Default max HTTP chunk size = 8192
    */
   public static final int DEFAULT_MAX_CHUNK_SIZE = 8192;
@@ -86,6 +91,7 @@ public class HttpServerOptions extends NetServerOptions {
 
   private boolean compressionSupported;
   private int maxWebsocketFrameSize;
+  private int maxWebsocketMessageSize;
   private String websocketSubProtocols;
   private boolean handle100ContinueAutomatically;
   private int maxChunkSize;
@@ -113,6 +119,7 @@ public class HttpServerOptions extends NetServerOptions {
     super(other);
     this.compressionSupported = other.isCompressionSupported();
     this.maxWebsocketFrameSize = other.getMaxWebsocketFrameSize();
+    this.maxWebsocketMessageSize = other.getMaxWebsocketMessageSize();
     this.websocketSubProtocols = other.getWebsocketSubProtocols();
     this.handle100ContinueAutomatically = other.handle100ContinueAutomatically;
     this.maxChunkSize = other.getMaxChunkSize();
@@ -138,6 +145,7 @@ public class HttpServerOptions extends NetServerOptions {
   private void init() {
     compressionSupported = DEFAULT_COMPRESSION_SUPPORTED;
     maxWebsocketFrameSize = DEFAULT_MAX_WEBSOCKET_FRAME_SIZE;
+    maxWebsocketMessageSize = DEFAULT_MAX_WEBSOCKET_MESSAGE_SIZE;
     handle100ContinueAutomatically = DEFAULT_HANDLE_100_CONTINE_AUTOMATICALLY;
     maxChunkSize = DEFAULT_MAX_CHUNK_SIZE;
     maxInitialLineLength = DEFAULT_MAX_INITIAL_LINE_LENGTH;
@@ -362,6 +370,24 @@ public class HttpServerOptions extends NetServerOptions {
   }
 
   /**
+   * @return  the maximum websocket message size
+   */
+  public int getMaxWebsocketMessageSize() {
+    return maxWebsocketMessageSize;
+  }
+
+  /**
+   * Set the maximum websocket message size
+   *
+   * @param maxWebsocketMessageSize  the maximum message size in bytes.
+   * @return a reference to this, so the API can be used fluently
+   */
+  public HttpServerOptions setMaxWebsocketMessageSize(int maxWebsocketMessageSize) {
+    this.maxWebsocketMessageSize = maxWebsocketMessageSize;
+    return this;
+  }
+
+  /**
    * Set the websocket subprotocols supported by the server.
    *
    * @param subProtocols  comma separated list of subprotocols
@@ -524,6 +550,7 @@ public class HttpServerOptions extends NetServerOptions {
 
     if (compressionSupported != that.compressionSupported) return false;
     if (maxWebsocketFrameSize != that.maxWebsocketFrameSize) return false;
+    if (maxWebsocketMessageSize != that.maxWebsocketMessageSize) return false;
     if (handle100ContinueAutomatically != that.handle100ContinueAutomatically) return false;
     if (maxChunkSize != that.maxChunkSize) return false;
     if (maxInitialLineLength != that.maxInitialLineLength) return false;
@@ -539,6 +566,7 @@ public class HttpServerOptions extends NetServerOptions {
     int result = super.hashCode();
     result = 31 * result + (compressionSupported ? 1 : 0);
     result = 31 * result + maxWebsocketFrameSize;
+    result = 31 * result + maxWebsocketMessageSize;
     result = 31 * result + (websocketSubProtocols != null ? websocketSubProtocols.hashCode() : 0);
     result = 31 * result + (initialSettings != null ? initialSettings.hashCode() : 0);
     result = 31 * result + (handle100ContinueAutomatically ? 1 : 0);

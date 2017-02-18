@@ -37,8 +37,8 @@ public class WebSocketImpl extends WebSocketImplBase implements WebSocket {
 
   public WebSocketImpl(VertxInternal vertx,
                        ClientConnection conn, boolean supportsContinuation,
-                       int maxWebSocketFrameSize) {
-    super(vertx, conn, supportsContinuation, maxWebSocketFrameSize);
+                       int maxWebSocketFrameSize, int maxWebSocketMessageSize) {
+    super(vertx, conn, supportsContinuation, maxWebSocketFrameSize, maxWebSocketMessageSize);
   }
 
   @Override
