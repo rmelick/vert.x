@@ -94,9 +94,10 @@ public class HttpClientOptions extends ClientOptionsBase {
   public static final int DEFAULT_MAX_WEBSOCKET_FRAME_SIZE = 65536;
 
   /**
-   * The default value for maximum websocket messages (could be assembled from multiple frames) = 655360 bytes
+   * The default value for maximum websocket messages (could be assembled from multiple frames) is 4 full frames
+   * worth of data
    */
-  public static final int DEFAULT_MAX_WEBSOCKET_MESSAGE_SIZE = 655360;
+  public static final int DEFAULT_MAX_WEBSOCKET_MESSAGE_SIZE = 65536 * 4;
 
   /**
    * The default value for host name = "localhost"

@@ -50,9 +50,10 @@ public class HttpServerOptions extends NetServerOptions {
   public static final int DEFAULT_MAX_WEBSOCKET_FRAME_SIZE = 65536;
 
   /**
-   * Default max websocket message (could be assembled from multiple frames) size = 655360
+   * Default max websocket message size (could be assembled from multiple frames) is 4 full frames
+   * worth of data
    */
-  public static final int DEFAULT_MAX_WEBSOCKET_MESSAGE_SIZE = 655360;
+  public static final int DEFAULT_MAX_WEBSOCKET_MESSAGE_SIZE = 65536 * 4;
 
   /**
    * Default max HTTP chunk size = 8192

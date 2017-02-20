@@ -1002,19 +1002,19 @@ public class WebsocketTest extends VertxTestBase {
 
   @Test
   public void testFragmentedUnicodeTextMessage2Hybi07() {
-    String messageToSend = TestUtils.randomUnicodeString(65536 + 65536 + 256);
+    String messageToSend = TestUtils.randomUnicodeString(65536 + 256);
     testWriteSingleTextMessage(messageToSend, WebsocketVersion.V07);
   }
 
   @Test
   public void testFragmentedUnicodeTextMessage2Hybi08() {
-    String messageToSend = TestUtils.randomUnicodeString(65536 + 65536 + 256);
+    String messageToSend = TestUtils.randomUnicodeString(65536 + 256);
     testWriteSingleTextMessage(messageToSend, WebsocketVersion.V08);
   }
 
   @Test
   public void testFragmentedUnicodeTextMessage2Hybi13() {
-    String messageToSend = TestUtils.randomUnicodeString(65536 + 65536 + 256);
+    String messageToSend = TestUtils.randomUnicodeString(65536 + 256);
     testWriteSingleTextMessage(messageToSend, WebsocketVersion.V13);
   }
 
