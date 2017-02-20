@@ -1001,6 +1001,12 @@ public class WebsocketTest extends VertxTestBase {
   }
 
   @Test
+  public void testMaxLengthFragmentedTextMessage() {
+    String messageToSend = TestUtils.randomAlphaString(HttpServerOptions.DEFAULT_MAX_WEBSOCKET_MESSAGE_SIZE);
+    testWriteSingleTextMessage(messageToSend, WebsocketVersion.V13);
+  }
+
+  @Test
   public void testFragmentedUnicodeTextMessage2Hybi07() {
     String messageToSend = TestUtils.randomUnicodeString(65536 + 256);
     testWriteSingleTextMessage(messageToSend, WebsocketVersion.V07);
@@ -1020,7 +1026,7 @@ public class WebsocketTest extends VertxTestBase {
 
   @Test
   public void testTooLargeMessage() {
-    String messageToSend = TestUtils.randomAlphaString(HttpClientOptions.DEFAULT_MAX_WEBSOCKET_MESSAGE_SIZE * 2);
+    String messageToSend = TestUtils.randomAlphaString(HttpClientOptions.DEFAULT_MAX_WEBSOCKET_MESSAGE_SIZE + 1);
     SocketMessages socketMessages = testWriteTextMessages(Collections.singletonList(messageToSend), WebsocketVersion.V13);
     List<String> receivedMessages = socketMessages.getReceivedMessages();
     List<String> expectedMessages = Collections.emptyList();
